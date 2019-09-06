@@ -61,7 +61,8 @@ static void msg_abort(int err, const char* msg, const char* srcfcn,
  * next_functions: libc replacement functions we are providing to the preloader.
  */
 static struct next_functions {
-  DIR* (*opendir)(const char* dirname);
+  int (*lstat)(const char* path, struct stat* buf);
+  DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
   int (*closedir)(DIR* dirp);
 } nxt = {0};
@@ -86,6 +87,7 @@ static void preload_init() {
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
   MUST_GETNEXTDLSYM(closedir);
+  MUST_GETNEXTDLSYM(lstat);
 }
 
 /*
@@ -93,11 +95,18 @@ static void preload_init() {
  */
 extern "C" {
 
-DIR* opendir(const char* dirname) {
+int lstat(const char* path, struct stat* const buf) {
   int rv = pthread_once(&init_once, preload_init);
   if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "opendir(%s)\n", dirname);
-  return nxt.opendir(dirname);
+  fprintf(stderr, "lstat(%s)\n", path);
+  return nxt.lstat(path, buf);
+}
+
+DIR* opendir(const char* path) {
+  int rv = pthread_once(&init_once, preload_init);
+  if (rv != 0) ABORT("pthread_once");
+  fprintf(stderr, "opendir(%s)\n", path);
+  return nxt.opendir(path);
 }
 
 struct dirent* readdir(DIR* dirp) {
