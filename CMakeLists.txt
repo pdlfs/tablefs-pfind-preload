@@ -66,6 +66,7 @@ endif ()
 set (DEBUG_SANITIZER Off CACHE STRING "Sanitizer for debug builds")
 set_property (CACHE DEBUG_SANITIZER PROPERTY STRINGS
               "Off" "Address" "Thread")
+set (CMAKE_PREFIX_PATH "" CACHE STRING "External dependencies path")
 
 #
 # sanitizer config (XXX: does not probe compiler to see if sanitizer flags
