@@ -45,9 +45,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#ifndef _STAT_VER
-#define _STAT_VER 0
-#endif
 
 /*
  * logging facilities and helpers
@@ -98,11 +95,11 @@ static void preload_init() {
  */
 extern "C" {
 
-int lstat(const char* path, struct stat* const buf) {
+int __lxstat(int ver, const char* path, struct stat* const buf) {
   int rv = pthread_once(&init_once, preload_init);
   if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "lstat(%s)\n", path);
-  return nxt.__lxstat(_STAT_VER, path, buf);
+  fprintf(stderr, "__lxstat(%s)\n", path);
+  return nxt.__lxstat(ver, path, buf);
 }
 
 DIR* opendir(const char* path) {
