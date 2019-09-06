@@ -34,8 +34,12 @@
 
 /*
  * preload.cc - redirect LANL pfind ops to tablefs
+ *
+ * Note: only works on Linux for now...
  */
-#include <assert.h>
+
+#include <tablefs/tablefs_api.h>
+
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -61,6 +65,8 @@ static void msg_abort(int err, const char* msg, const char* srcfcn,
  * next_functions: libc replacement functions we are providing to the preloader.
  */
 static struct next_functions {
+  int (*MPI_Init)(int* argc, char*** argv);
+  int (*MPI_Finalize)(void);
   int (*__lxstat)(int ver, const char* path, struct stat* buf);
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
@@ -84,6 +90,8 @@ static void must_getnextdlsym(void** result, const char* symbol) {
  */
 static void preload_init() {
 #define MUST_GETNEXTDLSYM(x) must_getnextdlsym((void**)(&nxt.x), #x)
+  MUST_GETNEXTDLSYM(MPI_Init);
+  MUST_GETNEXTDLSYM(MPI_Finalize);
   MUST_GETNEXTDLSYM(__lxstat);
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
@@ -94,6 +102,20 @@ static void preload_init() {
  * here are the actual override functions from libc.
  */
 extern "C" {
+
+int MPI_Init(int* argc, char*** argv) {
+  int rv = pthread_once(&init_once, preload_init);
+  if (rv != 0) ABORT("pthread_once");
+  fprintf(stderr, "MPI_Init()\n");
+  return nxt.MPI_Init(argc, argv);
+}
+
+int MPI_Finalize(void) {
+  int rv = pthread_once(&init_once, preload_init);
+  if (rv != 0) ABORT("pthread_once");
+  fprintf(stderr, "MPI_Finalize()\n");
+  return nxt.MPI_Finalize();
+}
 
 int __lxstat(int ver, const char* path, struct stat* const buf) {
   int rv = pthread_once(&init_once, preload_init);
