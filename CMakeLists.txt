@@ -86,5 +86,23 @@ endif ()
 
 find_package (tablefs CONFIG REQUIRED)
 
-add_subdirectory (src)
+set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set (THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package (Threads REQUIRED)
+
+#
+# create the library target
+#
+add_library (tablefs-pfind-preload preload.cc)
+
+target_link_libraries (tablefs-pfind-preload tablefs
+        Threads::Threads ${CMAKE_DL_LIBS})
+
+#
+# installation stuff
+#
+
+# "make install" rules...
+install (TARGETS tablefs-pfind-preload
+        ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 
