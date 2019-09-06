@@ -45,6 +45,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifndef _STAT_VER
+#define _STAT_VER 0
+#endif
 
 /*
  * logging facilities and helpers
@@ -61,7 +64,7 @@ static void msg_abort(int err, const char* msg, const char* srcfcn,
  * next_functions: libc replacement functions we are providing to the preloader.
  */
 static struct next_functions {
-  int (*lstat)(const char* path, struct stat* buf);
+  int (*__lxstat)(int ver, const char* path, struct stat* buf);
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
   int (*closedir)(DIR* dirp);
@@ -84,10 +87,10 @@ static void must_getnextdlsym(void** result, const char* symbol) {
  */
 static void preload_init() {
 #define MUST_GETNEXTDLSYM(x) must_getnextdlsym((void**)(&nxt.x), #x)
+  MUST_GETNEXTDLSYM(__lxstat);
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
   MUST_GETNEXTDLSYM(closedir);
-  MUST_GETNEXTDLSYM(lstat);
 }
 
 /*
@@ -99,7 +102,7 @@ int lstat(const char* path, struct stat* const buf) {
   int rv = pthread_once(&init_once, preload_init);
   if (rv != 0) ABORT("pthread_once");
   fprintf(stderr, "lstat(%s)\n", path);
-  return nxt.lstat(path, buf);
+  return nxt.__lxstat(_STAT_VER, path, buf);
 }
 
 DIR* opendir(const char* path) {
