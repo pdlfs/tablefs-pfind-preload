@@ -41,6 +41,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,13 +83,6 @@ static void usage(const char* msg) {
   fprintf(stderr, "\t-t sec      timeout (alarm), in seconds\n");
 
   exit(EXIT_FAILURE);
-}
-
-static uint64_t timeval_to_micros(const struct timeval* tv) {
-  uint64_t t;
-  t = static_cast<uint64_t>(tv->tv_sec) * 1000000;
-  t += tv->tv_usec;
-  return t;
 }
 
 /*
