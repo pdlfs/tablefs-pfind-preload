@@ -33,40 +33,49 @@
  */
 
 /*
- * preload.cc - redirect LANL pfind ops to tablefs
+ * preload.cc - redirect LANL GUFI/parallel_find fs ops to tablefs. Currently,
+ * only lstat, opendir, readdir, and closedir functions are preloaded.
+ * Redirection is only triggered when the full path of a target file or
+ * directory starts with a specific prefix (e.g., /tablefs). ONLY TESTED ON
+ * LINUX PLATFORMS at the moment. Does not work on Mac machines, in spite of its
+ * POSIX compliance and Unix likeness.
  *
- * Note: only works on Linux for now...
+ * Configuration:
+ *
+ * PRELOAD_Tablefs_path_prefix
+ *   Path prefix for triggering preload.
+ * PRELOAD_Tablefs_home
+ *   DB home of tablefs. This is where tablefs stores the fs namespace.
+ * PRELOAD_Verbose
+ *   Print more information.
  */
-
 #include <tablefs/tablefs_api.h>
 
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <pthread.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <set>
 
 /*
- * logging facilities and helpers
+ * Error reporting facilities...
  */
 #define ABORT_FILENAME \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-#define ABORT(msg) msg_abort(errno, msg, __func__, ABORT_FILENAME, __LINE__)
-
-/* abort with an error message */
-static void msg_abort(int err, const char* msg, const char* srcfcn,
+#define ABORT(what, why) \
+  msg_abort(why, what, __func__, ABORT_FILENAME, __LINE__)
+static void msg_abort(const char* why, const char* what, const char* srcfcn,
                       const char* srcf, int srcln);
 
 /*
- * next_functions: libc replacement functions we are providing to the preloader.
+ * next_functions: libc replacement functions (i.e., the default libc
+ * implementation) we are providing to the preloader.
  */
 static struct next_functions {
-  int (*MPI_Init)(int* argc, char*** argv);
-  int (*MPI_Finalize)(void);
   int (*__lxstat)(int ver, const char* path, struct stat* buf);
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
@@ -77,12 +86,58 @@ static struct next_functions {
  * this once is used to trigger the init of the preload library.
  */
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
+static void preload_init();
 
-/* helper: must_getnextdlsym: get next symbol or die */
+/*
+ * helper functions...
+ */
+
+/*
+ * must_getnextdlsym: get next symbol or die.
+ */
 static void must_getnextdlsym(void** result, const char* symbol) {
   *result = dlsym(RTLD_NEXT, symbol);
-  if (!(*result)) ABORT(symbol);
+  if (!(*result)) {
+    ABORT(symbol, dlerror());
+  }
 }
+
+/*
+ * must_preloadinit: init preload lib or die.
+ */
+static void must_preloadinit() {
+  int rv = pthread_once(&init_once, preload_init);
+  if (rv != 0) {
+    ABORT("pthread_once", strerror(rv));
+  }
+}
+
+/*
+ * is_envset: return 1 if key is set.
+ */
+static int is_envset(const char* key) {
+  const char* v = getenv(key);
+  if (!v || !v[0]) {
+    return 0;
+  } else if (strcmp(v, "0")) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
+/*
+ * end helpers
+ */
+
+static struct preload_ctx {
+  pthread_mutex_t mu;
+  size_t path_prefixlen; /* strlen(path_prefix) */
+  const char* path_prefix;
+  std::set<void*>* dps;
+  tablefs_t* fs;
+  int v;
+} ctx = {0};
 
 /*
  * preload_init: called via init_once. if this fails we are sunk, so
@@ -90,12 +145,32 @@ static void must_getnextdlsym(void** result, const char* symbol) {
  */
 static void preload_init() {
 #define MUST_GETNEXTDLSYM(x) must_getnextdlsym((void**)(&nxt.x), #x)
-  MUST_GETNEXTDLSYM(MPI_Init);
-  MUST_GETNEXTDLSYM(MPI_Finalize);
   MUST_GETNEXTDLSYM(__lxstat);
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
   MUST_GETNEXTDLSYM(closedir);
+
+#undef MUST_GETNEXTDLSYM
+  pthread_mutex_init(&ctx.mu, NULL);
+  ctx.v = is_envset("PRELOAD_Verbose");
+  if (ctx.v) fprintf(stderr, "PRELOAD_Verbose=%d\n", ctx.v);
+  const char* fsloc = getenv("PRELOAD_Tablefs_home");
+  if (!fsloc || !fsloc[0]) fsloc = "/tmp/tablefs";
+  if (ctx.v) fprintf(stderr, "PRELOAD_Tablefs_home=%s\n", fsloc);
+  ctx.path_prefix = getenv("PRELOAD_Tablefs_path_prefix");
+  if (!ctx.path_prefix || !ctx.path_prefix[0]) ctx.path_prefix = "/tablefs/";
+  ctx.path_prefixlen = strlen(ctx.path_prefix);
+  if (ctx.v) {
+    fprintf(stderr, "PRELOAD_Tablefs_path_prefix=%s\n", ctx.path_prefix);
+  }
+  ctx.dps = new std::set<void*>;
+  ctx.fs = tablefs_newfshdl();
+  int r = tablefs_openfs(ctx.fs, fsloc);
+  if (r == -1) {
+    ABORT("tablefs_openfs", strerror(errno));
+  } else {
+    // OK!
+  }
 }
 
 /*
@@ -103,56 +178,67 @@ static void preload_init() {
  */
 extern "C" {
 
-int MPI_Init(int* argc, char*** argv) {
-  int rv = pthread_once(&init_once, preload_init);
-  if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "MPI_Init()\n");
-  return nxt.MPI_Init(argc, argv);
-}
-
-int MPI_Finalize(void) {
-  int rv = pthread_once(&init_once, preload_init);
-  if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "MPI_Finalize()\n");
-  return nxt.MPI_Finalize();
-}
-
+/*
+ * lstat is bound to __lxstat in libc on Linux... This kind of stuff is entirely
+ * platform dependent. We don't have a solution that works for all platforms.
+ */
 int __lxstat(int ver, const char* path, struct stat* const buf) {
-  int rv = pthread_once(&init_once, preload_init);
-  if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "__lxstat(%s)\n", path);
-  return nxt.__lxstat(ver, path, buf);
+  must_preloadinit();
+  if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
+    return tablefs_lstat(ctx.fs, path, buf);
+  } else {
+    return nxt.__lxstat(ver, path, buf);
+  }
 }
 
 DIR* opendir(const char* path) {
-  int rv = pthread_once(&init_once, preload_init);
-  if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "opendir(%s)\n", path);
-  return nxt.opendir(path);
+  must_preloadinit();
+  if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
+    DIR* dirp = reinterpret_cast<DIR*>(tablefs_opendir(ctx.fs, path));
+    pthread_mutex_lock(&ctx.mu);
+    ctx.dps->insert(dirp);
+    pthread_mutex_unlock(&ctx.mu);
+    return dirp;
+  } else {
+    return nxt.opendir(path);
+  }
 }
 
 struct dirent* readdir(DIR* dirp) {
-  int rv = pthread_once(&init_once, preload_init);
-  if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "readdir(%p)\n", dirp);
-  return nxt.readdir(dirp);
+  must_preloadinit();
+  pthread_mutex_lock(&ctx.mu);
+  size_t istablefs = ctx.dps->count(dirp);
+  pthread_mutex_unlock(&ctx.mu);
+  if (istablefs) {
+    return tablefs_readdir(reinterpret_cast<tablefs_dir_t*>(dirp));
+  } else {
+    return nxt.readdir(dirp);
+  }
 }
 
 int closedir(DIR* dirp) {
-  int rv = pthread_once(&init_once, preload_init);
-  if (rv != 0) ABORT("pthread_once");
-  fprintf(stderr, "closedir(%p)\n", dirp);
-  return nxt.closedir(dirp);
+  must_preloadinit();
+  pthread_mutex_lock(&ctx.mu);
+  size_t istablefs = ctx.dps->erase(dirp);
+  pthread_mutex_unlock(&ctx.mu);
+  if (istablefs) {
+    return tablefs_closedir(reinterpret_cast<tablefs_dir_t*>(dirp));
+  } else {
+    return nxt.closedir(dirp);
+  }
 }
 
 } /* extern "C" */
 
-static void msg_abort(int err, const char* msg, const char* srcfcn,
+/*
+ * abort with what, why, and where
+ */
+static void msg_abort(const char* why, const char* what, const char* srcfcn,
                       const char* srcf, int srcln) {
   fputs("*** ABORT *** ", stderr);
   fprintf(stderr, "@@ %s:%d @@ %s] ", srcf, srcln, srcfcn);
-  fputs(msg, stderr);
-  if (err != 0) fprintf(stderr, ": %s (errno=%d)", strerror(err), err);
+  fputs(what, stderr);
+  if (why) fprintf(stderr, ": %s", why);
   fputc('\n', stderr);
   abort();
 }
