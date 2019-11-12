@@ -34,10 +34,10 @@
 
 /*
  * preload.cc - redirect LANL GUFI/parallel_find fs ops to tablefs. Currently,
- * only lstat, opendir, readdir, and closedir functions are preloaded.
+ * only lstat, opendir, readdir, and closedir functions are redirected.
  * Redirection is only triggered when the full path of a target file or
  * directory starts with a specific prefix (e.g., /tablefs). ONLY TESTED ON
- * LINUX PLATFORMS at the moment. Does not work on Mac machines, in spite of its
+ * LINUX PLATFORMS at the moment. Does not work on Mac machines despite their
  * POSIX compliance and Unix likeness.
  *
  * Configuration:
@@ -105,7 +105,7 @@ static void must_getnextdlsym(void** result, const char* symbol) {
 /*
  * must_preloadinit: init preload lib or die.
  */
-static void must_preloadinit() {
+static void MUST_preloadinit() {
   int rv = pthread_once(&init_once, preload_init);
   if (rv != 0) {
     ABORT("pthread_once", strerror(rv));
@@ -130,11 +130,17 @@ static int is_envset(const char* key) {
  * end helpers
  */
 
+/*
+ * we assume that different threads do not share DIR* with each other and each
+ * thread only opens one directory at a time. This allows us to use a simple
+ * thread local storage to trace the directory currently opened by each
+ * individual thread.
+ */
+static thread_local void* currdir = nullptr;
+
 static struct preload_ctx {
-  pthread_mutex_t mu;
   size_t path_prefixlen; /* strlen(path_prefix) */
   const char* path_prefix;
-  std::set<void*>* dps;
   tablefs_t* fs;
   int v;
 } ctx = {0};
@@ -151,7 +157,6 @@ static void preload_init() {
   MUST_GETNEXTDLSYM(closedir);
 
 #undef MUST_GETNEXTDLSYM
-  pthread_mutex_init(&ctx.mu, NULL);
   ctx.v = is_envset("PRELOAD_Verbose");
   if (ctx.v) fprintf(stderr, "PRELOAD_Verbose=%d\n", ctx.v);
   const char* fsloc = getenv("PRELOAD_Tablefs_home");
@@ -163,7 +168,6 @@ static void preload_init() {
   if (ctx.v) {
     fprintf(stderr, "PRELOAD_Tablefs_path_prefix=%s\n", ctx.path_prefix);
   }
-  ctx.dps = new std::set<void*>;
   ctx.fs = tablefs_newfshdl();
   int r = tablefs_openfs(ctx.fs, fsloc);
   if (r == -1) {
@@ -179,11 +183,11 @@ static void preload_init() {
 extern "C" {
 
 /*
- * lstat is bound to __lxstat in libc on Linux... This kind of stuff is entirely
- * platform dependent. We don't have a solution that works for all platforms.
+ * lstat is bound to __lxstat in libc on Linux... We don't know if there is a
+ * solution that works for all platforms.
  */
 int __lxstat(int ver, const char* path, struct stat* const buf) {
-  must_preloadinit();
+  MUST_preloadinit();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
     return tablefs_lstat(ctx.fs, path, buf);
   } else {
@@ -192,12 +196,11 @@ int __lxstat(int ver, const char* path, struct stat* const buf) {
 }
 
 DIR* opendir(const char* path) {
-  must_preloadinit();
+  MUST_preloadinit();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
     DIR* dirp = reinterpret_cast<DIR*>(tablefs_opendir(ctx.fs, path));
-    pthread_mutex_lock(&ctx.mu);
-    ctx.dps->insert(dirp);
-    pthread_mutex_unlock(&ctx.mu);
+    assert(!currdir);
+    currdir = dirp;
     return dirp;
   } else {
     return nxt.opendir(path);
@@ -205,11 +208,8 @@ DIR* opendir(const char* path) {
 }
 
 struct dirent* readdir(DIR* dirp) {
-  must_preloadinit();
-  pthread_mutex_lock(&ctx.mu);
-  size_t istablefs = ctx.dps->count(dirp);
-  pthread_mutex_unlock(&ctx.mu);
-  if (istablefs) {
+  MUST_preloadinit();
+  if (currdir == dirp) {
     return tablefs_readdir(reinterpret_cast<tablefs_dir_t*>(dirp));
   } else {
     return nxt.readdir(dirp);
@@ -217,12 +217,11 @@ struct dirent* readdir(DIR* dirp) {
 }
 
 int closedir(DIR* dirp) {
-  must_preloadinit();
-  pthread_mutex_lock(&ctx.mu);
-  size_t istablefs = ctx.dps->erase(dirp);
-  pthread_mutex_unlock(&ctx.mu);
-  if (istablefs) {
-    return tablefs_closedir(reinterpret_cast<tablefs_dir_t*>(dirp));
+  MUST_preloadinit();
+  if (currdir == dirp) {
+    int rv = tablefs_closedir(reinterpret_cast<tablefs_dir_t*>(dirp));
+    currdir = nullptr;
+    return rv;
   } else {
     return nxt.closedir(dirp);
   }
