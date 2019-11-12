@@ -92,6 +92,11 @@ static void preload_init();
 static void tablefs_init();
 
 /*
+ * finalize fs.
+ */
+static void closefs();
+
+/*
  * helper functions...
  */
 
@@ -172,7 +177,7 @@ static void preload_init() {
 
 #undef MUST_GETNEXTDLSYM
   ctx.v = is_envset("PRELOAD_Verbose");
-  if (ctx.v) fprintf(stderr, "PRELOAD_Verbose=%d\n", ctx.v);
+  if (ctx.v) printf("PRELOAD_Verbose=%d\n", ctx.v);
   ctx.fsloc = getenv("PRELOAD_Tablefs_home");
   if (!ctx.fsloc || !ctx.fsloc[0]) {
     ctx.fsloc = "/tmp/tablefs";
@@ -186,8 +191,8 @@ static void preload_init() {
   if (ctx.path_prefix[ctx.path_prefixlen - 1] != '/')
     ABORT(ctx.path_prefix, "Does not end with '/'");
   if (ctx.v) {
-    fprintf(stderr, "PRELOAD_Tablefs_path_prefix=%s\n", ctx.path_prefix);
-    fprintf(stderr, "PRELOAD_Tablefs_home=%s\n", ctx.fsloc);
+    printf("PRELOAD_Tablefs_path_prefix=%s\n", ctx.path_prefix);
+    printf("PRELOAD_Tablefs_home=%s\n", ctx.fsloc);
   }
 
   ctx.fs = NULL; /* initialized by tablefs_init() */
@@ -200,8 +205,16 @@ static void tablefs_init() {
   if (r == -1) {
     ABORT("tablefs_openfs", strerror(errno));
   } else {
-    // OK!
+    if (ctx.v) printf("fs opened!\n");
+    atexit(closefs);
   }
+}
+
+static void closefs() {
+  assert(!ctx.fs);
+  tablefs_delfshdl(ctx.fs);
+  if (ctx.v) printf("fs closed!\n");
+  printf("bye\n");
 }
 
 /*
