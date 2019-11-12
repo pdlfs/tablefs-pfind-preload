@@ -83,10 +83,13 @@ static struct next_functions {
 } nxt = {0};
 
 /*
- * this once is used to trigger the init of the preload library.
+ * init is done as a two-step process: in the first step, we init only the
+ * preload ctx; in the second step, we open tablefs.
  */
-static pthread_once_t init_once = PTHREAD_ONCE_INIT;
+static pthread_once_t preload_once = PTHREAD_ONCE_INIT;
+static pthread_once_t tablefs_once = PTHREAD_ONCE_INIT;
 static void preload_init();
+static void tablefs_init();
 
 /*
  * helper functions...
@@ -99,16 +102,6 @@ static void must_getnextdlsym(void** result, const char* symbol) {
   *result = dlsym(RTLD_NEXT, symbol);
   if (!(*result)) {
     ABORT(symbol, dlerror());
-  }
-}
-
-/*
- * must_preloadinit: init preload lib or die.
- */
-static void MUST_preloadinit() {
-  int rv = pthread_once(&init_once, preload_init);
-  if (rv != 0) {
-    ABORT("pthread_once", strerror(rv));
   }
 }
 
@@ -141,9 +134,30 @@ static thread_local void* currdir = nullptr;
 static struct preload_ctx {
   size_t path_prefixlen; /* strlen(path_prefix) */
   const char* path_prefix;
+  const char* fsloc;
   tablefs_t* fs;
   int v;
 } ctx = {0};
+
+/*
+ * PRELOAD_Init: init preload lib or die.
+ */
+static void PRELOAD_Init() {
+  int rv = pthread_once(&preload_once, preload_init);
+  if (rv != 0) {
+    ABORT("pthread_once", strerror(rv));
+  }
+}
+
+/*
+ * TABLEFS_Init: init tablefs.
+ */
+static void TABLEFS_Init() {
+  int rv = pthread_once(&tablefs_once, tablefs_init);
+  if (rv != 0) {
+    ABORT("pthread_once", strerror(rv));
+  }
+}
 
 /*
  * preload_init: called via init_once. if this fails we are sunk, so
@@ -159,20 +173,30 @@ static void preload_init() {
 #undef MUST_GETNEXTDLSYM
   ctx.v = is_envset("PRELOAD_Verbose");
   if (ctx.v) fprintf(stderr, "PRELOAD_Verbose=%d\n", ctx.v);
-  const char* fsloc = getenv("PRELOAD_Tablefs_home");
-  if (!fsloc || !fsloc[0]) fsloc = "/tmp/tablefs";
-  if (ctx.v) fprintf(stderr, "PRELOAD_Tablefs_home=%s\n", fsloc);
+  ctx.fsloc = getenv("PRELOAD_Tablefs_home");
+  if (!ctx.fsloc || !ctx.fsloc[0]) {
+    ctx.fsloc = "/tmp/tablefs";
+  }
   ctx.path_prefix = getenv("PRELOAD_Tablefs_path_prefix");
-  if (!ctx.path_prefix || !ctx.path_prefix[0]) ctx.path_prefix = "/tablefs/";
+  if (!ctx.path_prefix || !ctx.path_prefix[0]) {
+    ctx.path_prefix = "/tablefs/";
+  }
   ctx.path_prefixlen = strlen(ctx.path_prefix);
   if (ctx.path_prefixlen == 1) ABORT(ctx.path_prefix, "Too short");
   if (ctx.path_prefix[ctx.path_prefixlen - 1] != '/')
     ABORT(ctx.path_prefix, "Does not end with '/'");
   if (ctx.v) {
     fprintf(stderr, "PRELOAD_Tablefs_path_prefix=%s\n", ctx.path_prefix);
+    fprintf(stderr, "PRELOAD_Tablefs_home=%s\n", ctx.fsloc);
   }
+
+  ctx.fs = NULL; /* initialized by tablefs_init() */
+}
+
+static void tablefs_init() {
+  assert(!ctx.fs);
   ctx.fs = tablefs_newfshdl();
-  int r = tablefs_openfs(ctx.fs, fsloc);
+  int r = tablefs_openfs(ctx.fs, ctx.fsloc);
   if (r == -1) {
     ABORT("tablefs_openfs", strerror(errno));
   } else {
@@ -190,8 +214,9 @@ extern "C" {
  * solution that works for all platforms.
  */
 int __lxstat(int ver, const char* path, struct stat* buf) {
-  MUST_preloadinit();
+  PRELOAD_Init();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
+    TABLEFS_Init();
     return tablefs_lstat(ctx.fs, path + ctx.path_prefixlen - 1, buf);
   }
 
@@ -199,8 +224,9 @@ int __lxstat(int ver, const char* path, struct stat* buf) {
 }
 
 DIR* opendir(const char* path) {
-  MUST_preloadinit();
+  PRELOAD_Init();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
+    TABLEFS_Init();
     if (currdir) {
       ABORT("opendir", "Too many open dirs");
     }
@@ -214,7 +240,7 @@ DIR* opendir(const char* path) {
 }
 
 struct dirent* readdir(DIR* dirp) {
-  MUST_preloadinit();
+  PRELOAD_Init();
   if (currdir == dirp)
     return tablefs_readdir(reinterpret_cast<tablefs_dir_t*>(dirp));
 
@@ -222,7 +248,7 @@ struct dirent* readdir(DIR* dirp) {
 }
 
 int closedir(DIR* dirp) {
-  MUST_preloadinit();
+  PRELOAD_Init();
   if (currdir == dirp) {
     int rv = tablefs_closedir(reinterpret_cast<tablefs_dir_t*>(dirp));
     currdir = nullptr;
