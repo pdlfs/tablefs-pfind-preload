@@ -201,23 +201,24 @@ int __lxstat(int ver, const char* path, struct stat* const buf) {
 DIR* opendir(const char* path) {
   MUST_preloadinit();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
+    if (currdir) {
+      ABORT("opendir", "Too many open dirs");
+    }
     DIR* dirp = reinterpret_cast<DIR*>(
         tablefs_opendir(ctx.fs, path + ctx.path_prefixlen - 1));
-    if (currdir) ABORT("opendir", "Too many open dirs");
     currdir = dirp;
     return dirp;
-  } else {
-    return nxt.opendir(path);
   }
+
+  return nxt.opendir(path);
 }
 
 struct dirent* readdir(DIR* dirp) {
   MUST_preloadinit();
-  if (currdir == dirp) {
+  if (currdir == dirp)
     return tablefs_readdir(reinterpret_cast<tablefs_dir_t*>(dirp));
-  } else {
-    return nxt.readdir(dirp);
-  }
+
+  return nxt.readdir(dirp);
 }
 
 int closedir(DIR* dirp) {
@@ -226,9 +227,9 @@ int closedir(DIR* dirp) {
     int rv = tablefs_closedir(reinterpret_cast<tablefs_dir_t*>(dirp));
     currdir = nullptr;
     return rv;
-  } else {
-    return nxt.closedir(dirp);
   }
+
+  return nxt.closedir(dirp);
 }
 
 } /* extern "C" */
