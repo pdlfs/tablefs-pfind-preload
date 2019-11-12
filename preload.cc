@@ -189,13 +189,13 @@ extern "C" {
  * lstat is bound to __lxstat in libc on Linux... We don't know if there is a
  * solution that works for all platforms.
  */
-int __lxstat(int ver, const char* path, struct stat* const buf) {
+int __lxstat(int ver, const char* path, struct stat* buf) {
   MUST_preloadinit();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
     return tablefs_lstat(ctx.fs, path + ctx.path_prefixlen - 1, buf);
-  } else {
-    return nxt.__lxstat(ver, path, buf);
   }
+
+  return nxt.__lxstat(ver, path, buf);
 }
 
 DIR* opendir(const char* path) {
