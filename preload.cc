@@ -51,6 +51,7 @@
  */
 #include <tablefs/tablefs_api.h>
 
+#include <assert.h>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
