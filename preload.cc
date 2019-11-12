@@ -165,6 +165,9 @@ static void preload_init() {
   ctx.path_prefix = getenv("PRELOAD_Tablefs_path_prefix");
   if (!ctx.path_prefix || !ctx.path_prefix[0]) ctx.path_prefix = "/tablefs/";
   ctx.path_prefixlen = strlen(ctx.path_prefix);
+  if (ctx.path_prefixlen == 1) ABORT(ctx.path_prefix, "Too short");
+  if (ctx.path_prefix[ctx.path_prefixlen - 1] != '/')
+    ABORT(ctx.path_prefix, "Does not end with '/'");
   if (ctx.v) {
     fprintf(stderr, "PRELOAD_Tablefs_path_prefix=%s\n", ctx.path_prefix);
   }
@@ -189,7 +192,7 @@ extern "C" {
 int __lxstat(int ver, const char* path, struct stat* const buf) {
   MUST_preloadinit();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
-    return tablefs_lstat(ctx.fs, path, buf);
+    return tablefs_lstat(ctx.fs, path + ctx.path_prefixlen - 1, buf);
   } else {
     return nxt.__lxstat(ver, path, buf);
   }
@@ -198,8 +201,9 @@ int __lxstat(int ver, const char* path, struct stat* const buf) {
 DIR* opendir(const char* path) {
   MUST_preloadinit();
   if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
-    DIR* dirp = reinterpret_cast<DIR*>(tablefs_opendir(ctx.fs, path));
-    assert(!currdir);
+    DIR* dirp = reinterpret_cast<DIR*>(
+        tablefs_opendir(ctx.fs, path + ctx.path_prefixlen - 1));
+    if (currdir) ABORT("opendir", "Too many open dirs");
     currdir = dirp;
     return dirp;
   } else {
