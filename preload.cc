@@ -212,7 +212,7 @@ static void tablefs_init() {
 }
 
 static void closefs() {
-  assert(!ctx.fs);
+  assert(ctx.fs);
   tablefs_delfshdl(ctx.fs);
   if (ctx.v) printf("fs closed!\n");
   printf("bye\n");
