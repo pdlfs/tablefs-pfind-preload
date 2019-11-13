@@ -201,6 +201,7 @@ static void preload_init() {
 static void tablefs_init() {
   assert(!ctx.fs);
   ctx.fs = tablefs_newfshdl();
+  tablefs_set_readonly(ctx.fs, 1);
   int r = tablefs_openfs(ctx.fs, ctx.fsloc);
   if (r == -1) {
     ABORT("tablefs_openfs", strerror(errno));
