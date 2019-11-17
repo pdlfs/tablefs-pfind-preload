@@ -34,18 +34,18 @@
 
 /*
  * preload.cc - redirect LANL GUFI/parallel_find fs ops to tablefs. Currently,
- * only lstat, opendir, readdir, and closedir functions are redirected.
- * Redirection is only triggered when the full path of a target file or
- * directory starts with a specific prefix (e.g., /tablefs). ONLY TESTED ON
- * LINUX PLATFORMS at the moment. Does not work on Mac machines despite their
- * POSIX compliance and Unix likeness.
+ * only lstat, opendir, readdir, and closedir functions are redirected, and
+ * redirection is only triggered when the pathname passed to us starts with a
+ * specific prefix (e.g., /tablefs). Code is ONLY TESTED ON LINUX PLATFORMS at
+ * the moment. Does not work on macOS despite its POSIX compliance and
+ * Unix likeness.
  *
  * Configuration:
  *
  * PRELOAD_Tablefs_path_prefix
  *   Path prefix for triggering preload.
  * PRELOAD_Tablefs_home
- *   DB home of tablefs. This is where tablefs stores the fs namespace.
+ *   DB home of tablefs. This is where tablefs stores namesapce data.
  * PRELOAD_Verbose
  *   Print more information.
  */
