@@ -45,7 +45,7 @@
  * PRELOAD_Tablefs_path_prefix
  *   Path prefix for triggering preload.
  * PRELOAD_Tablefs_home
- *   DB home of tablefs. This is where tablefs stores namesapce data.
+ *   DB home of tablefs. This is where tablefs stores namespace data.
  * PRELOAD_Verbose
  *   Print more information.
  */
@@ -201,6 +201,7 @@ static void preload_init() {
 static void tablefs_init() {
   assert(!ctx.fs);
   ctx.fs = tablefs_newfshdl();
+
   tablefs_set_readonly(ctx.fs, 1);
   int r = tablefs_openfs(ctx.fs, ctx.fsloc);
   if (r == -1) {
