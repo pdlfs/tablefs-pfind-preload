@@ -46,6 +46,8 @@
  *   Path prefix for triggering preload.
  * PRELOAD_Tablefs_home
  *   DB home of tablefs. This is where tablefs stores namespace data.
+ * PRELOAD_Tablefs_readonly
+ *   Open tablefs as read only.
  * PRELOAD_Verbose
  *   Print more information.
  */
@@ -141,6 +143,7 @@ static struct preload_ctx {
   const char* path_prefix;
   const char* fsloc;
   tablefs_t* fs;
+  int rdonly;
   int v;
 } ctx = {0};
 
@@ -177,7 +180,7 @@ static void preload_init() {
 
 #undef MUST_GETNEXTDLSYM
   ctx.v = is_envset("PRELOAD_Verbose");
-  if (ctx.v) printf("PRELOAD_Verbose=%d\n", ctx.v);
+  ctx.rdonly = is_envset("PRELOAD_Tablefs_readonly");
   ctx.fsloc = getenv("PRELOAD_Tablefs_home");
   if (!ctx.fsloc || !ctx.fsloc[0]) {
     ctx.fsloc = "/tmp/tablefs";
@@ -191,6 +194,8 @@ static void preload_init() {
   if (ctx.path_prefix[ctx.path_prefixlen - 1] != '/')
     ABORT(ctx.path_prefix, "Does not end with '/'");
   if (ctx.v) {
+    printf("PRELOAD_Verbose=%d\n", ctx.v);
+    printf("PRELOAD_Tablefs_readonly=%d\n", ctx.rdonly);
     printf("PRELOAD_Tablefs_path_prefix=%s\n", ctx.path_prefix);
     printf("PRELOAD_Tablefs_home=%s\n", ctx.fsloc);
   }
@@ -201,8 +206,7 @@ static void preload_init() {
 static void tablefs_init() {
   assert(!ctx.fs);
   ctx.fs = tablefs_newfshdl();
-
-  tablefs_set_readonly(ctx.fs, 1);
+  if (ctx.rdonly) tablefs_set_readonly(ctx.fs, 1);
   int r = tablefs_openfs(ctx.fs, ctx.fsloc);
   if (r == -1) {
     ABORT("tablefs_openfs", strerror(errno));
