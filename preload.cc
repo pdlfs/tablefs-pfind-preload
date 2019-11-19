@@ -119,7 +119,7 @@ static int is_envset(const char* key) {
   const char* v = getenv(key);
   if (!v || !v[0]) {
     return 0;
-  } else if (strcmp(v, "0")) {
+  } else if (strcmp(v, "0") != 0) {
     return 0;
   } else {
     return 1;
