@@ -224,6 +224,24 @@ static void closefs() {
 }
 
 /*
+ * is_tablefs: return NULL if the input path is not in tablefs so one of the
+ * functions in nxt should be called to handle it. Return the input path's
+ * corresponding tablefs path otherwise.
+ */
+static const char* is_tablefs(const char* input) {
+  size_t prefixlen_1 = ctx.path_prefixlen - 1;
+  if (strncmp(input, ctx.path_prefix, prefixlen_1) != 0) {
+    return NULL;
+  } else if (input[prefixlen_1] && input[prefixlen_1] != '/') {
+    return NULL;
+  } else if (input[prefixlen_1]) {
+    return input + prefixlen_1;
+  } else {
+    return "/";
+  }
+}
+
+/*
  * here are the actual override functions from libc.
  */
 extern "C" {
@@ -234,9 +252,10 @@ extern "C" {
  */
 int __lxstat(int ver, const char* path, struct stat* buf) {
   PRELOAD_Init();
-  if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
     TABLEFS_Init();
-    return tablefs_lstat(ctx.fs, path + ctx.path_prefixlen - 1, buf);
+    return tablefs_lstat(ctx.fs, newpath, buf);
   }
 
   return nxt.__lxstat(ver, path, buf);
@@ -244,13 +263,13 @@ int __lxstat(int ver, const char* path, struct stat* buf) {
 
 DIR* opendir(const char* path) {
   PRELOAD_Init();
-  if (strncmp(path, ctx.path_prefix, ctx.path_prefixlen) == 0) {
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
     TABLEFS_Init();
     if (currdir) {
       ABORT("opendir", "Too many open dirs");
     }
-    DIR* dirp = reinterpret_cast<DIR*>(
-        tablefs_opendir(ctx.fs, path + ctx.path_prefixlen - 1));
+    DIR* dirp = reinterpret_cast<DIR*>(tablefs_opendir(ctx.fs, newpath));
     currdir = dirp;
     return dirp;
   }
