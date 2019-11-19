@@ -211,7 +211,7 @@ static void tablefs_init() {
   if (r == -1) {
     ABORT("tablefs_openfs", strerror(errno));
   } else {
-    if (ctx.v) printf("== fs opened!\n");
+    if (ctx.v) printf("== Fs opened!\n");
     atexit(closefs);
   }
 }
@@ -219,8 +219,8 @@ static void tablefs_init() {
 static void closefs() {
   assert(ctx.fs);
   tablefs_delfshdl(ctx.fs);
-  if (ctx.v) printf("== fs closed!\n");
-  printf("bye\n");
+  if (ctx.v) printf("== Fs closed!\n");
+  printf("Bye\n");
 }
 
 /*
