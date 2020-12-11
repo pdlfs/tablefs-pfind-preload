@@ -218,7 +218,7 @@ static void tablefs_init() {
 
 static void closefs() {
   assert(ctx.fs);
-  tablefs_delfshdl(ctx.fs);
+  tablefs_closefs(ctx.fs);
   if (ctx.v) printf("== Fs closed!\n");
   printf("Bye\n");
 }
