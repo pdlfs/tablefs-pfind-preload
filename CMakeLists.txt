@@ -93,9 +93,11 @@ find_package (Threads REQUIRED)
 #
 # create the library target
 #
+add_executable(fsmaker fsmaker.cc)
 add_executable(tablefs-pfind-preload-runner preload_runner.cc)
 add_library (tablefs-pfind-preload preload.cc)
 
+target_link_libraries(fsmaker tablefs)
 target_link_libraries (tablefs-pfind-preload tablefs
         Threads::Threads ${CMAKE_DL_LIBS})
 
@@ -108,3 +110,4 @@ install (TARGETS tablefs-pfind-preload
         ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 install (TARGETS tablefs-pfind-preload-runner
         RUNTIME DESTINATION bin)
+install (TARGETS fsmaker RUNTIME DESTINATION bin)

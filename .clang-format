@@ -35,12 +35,12 @@ BasedOnStyle:    google
 DerivePointerAlignment: false
 IncludeBlocks:   Regroup
 IncludeCategories:
-  - Regex:           '^"pdlfs-common/'
-    Priority:        2
+  - Regex:           '^"tablefs/'
+    Priority:        3
   - Regex:           '^<.*\.h>'
-    Priority:        3
+    Priority:        4
   - Regex:           '^<.*'
-    Priority:        3
+    Priority:        4
   - Regex:           '.*'
     Priority:        1
 ...
