@@ -88,8 +88,54 @@ We need to use LD_PRELOAD this time. The preload lib is located at `tablefs-dst/
 
 The preload lib works by redirecting all filesystem calls whose path starts with `/tablefs` to tablefs. Redirected fs calls will have their path prefix `/tablefs` removed. For example, if parallel_find makes an `opendir` call to `/tablefs/1`,  this call will end up becoming an `opendir` call to `/1` in tablefs.
 
-Now let's do a run.
+Now let's do a run with 1 parallel_find thread.
+
+```bash
+env PRELOAD_Tablefs_home=${tablefs-dat} PRELOAD_Tablefs_readonly=1 LD_PRELOAD=${tablefs-dst}/lib/libtablefs-pfind-preload.so /path/to/lanl/gufi/parallel_find /tablefs -n 1
+```
+
+Here's its output.
+
+```bash
+/tablefs
+/tablefs/1
+/tablefs/1/a
+/tablefs/1/b
+/tablefs/1/c
+/tablefs/2
+/tablefs/2/a
+/tablefs/2/b
+/tablefs/2/c
+/tablefs/3
+/tablefs/3/a
+/tablefs/3/b
+/tablefs/3/c
+Bye
+```
+
+Now, let's do a run with 2 parallel_find threads.
 
 ```bash
 env PRELOAD_Tablefs_home=${tablefs-dat} PRELOAD_Tablefs_readonly=1 LD_PRELOAD=${tablefs-dst}/lib/libtablefs-pfind-preload.so /path/to/lanl/gufi/parallel_find /tablefs -n 2
 ```
+
+Here's the output. Note that this time the directories are printed in random order, meaning that everything works as expected.
+
+```bash
+/tablefs
+/tablefs/1
+/tablefs/2
+/tablefs/1/a
+/tablefs/1/b
+/tablefs/1/c
+/tablefs/3
+/tablefs/2/a
+/tablefs/2/b
+/tablefs/2/c
+/tablefs/3/a
+/tablefs/3/b
+/tablefs/3/c
+Bye
+```
+
+If we don't like the `/tablefs` path prefix we can change it by setting env `PRELOAD_Tablefs_path_prefix` to other prefixes. When we do that, remember to invoke parallel_find accordingly for calls to be properly redirected.
