@@ -19,7 +19,7 @@ XXXXXXXXX        XXXXXXX   XX    XX        XX  XX      XX
 
 This preload library, as well as DeltaFS/TableFS, was developed, in part, under U.S. Government contract 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is operated by Triad National Security, LLC for the U.S. Department of Energy/National Nuclear Security Administration. Please see the accompanying LICENSE.txt for further information.
 
-# User Manual
+# User Manual (LANL/parallel_find)
 
 **First, secure a Linux box, install gcc, make, and cmake on it, and then create the following 3 directories.**
 
@@ -67,6 +67,8 @@ make install
 No need to use LD_PRELOAD at this moment.
 
 ```bash
+rm -rf ${tablefs-dat}   # clean up data of previous runs
+mkdir -p ${tablefs-dat}   # ensure parent directories
 cd ${tablefs-dst}/bin
 ./fsmaker ${tablefs-dat}
 ```
@@ -139,3 +141,50 @@ Bye
 ```
 
 If we don't like the `/tablefs` path prefix we can change it by setting env `PRELOAD_Tablefs_path_prefix` to other prefixes. When we do that, remember to invoke parallel_find accordingly for calls to be properly redirected.
+
+# User Manual (ior/mdtest)
+
+* MPICH
+
+```bash
+rm -rf ${tablefs-dat}   # clean up data of previous runs
+mkdir -p ${tablefs-dat}   # ensure parent directories
+mpirun -np 1 -env PRELOAD_Tablefs_home ${tablefs-dat} -env LD_PRELOAD ${tablefs-dst}/lib/libtablefs-pfind-preload.so \
+  /path/to/hpc/ior/mdtest -C -T -k -n 40 -z 3 -b 3 -d /tablefs
+```
+
+* OpenMPI
+
+```bash
+rm -rf ${tablefs-dat}   # clean up data of previous runs
+mkdir -p ${tablefs-dat}   # ensure parent directories
+mpirun -np 1 -x PRELOAD_Tablefs_home=${tablefs-dat} -x LD_PRELOAD=${tablefs-dst}/lib/libtablefs-pfind-preload.so \
+  /path/to/hpc/ior/mdtest -C -T -k -n 40 -z 3 -b 3 -d /tablefs
+```
+
+Here's its output.
+
+```bash
+-- started at 12/11/2020 23:23:21 --
+
+mdtest-3.4.0+dev was launched with 1 total task(s) on 1 node(s)
+Command line used: ./mdtest '-C' '-T' '-k' '-n' '40' '-z' '3' '-b' '3' '-d' '/tablefs'
+POSIX couldn't call statvfs: No such file or directory
+WARNING: Backend returned error during statfs.
+Nodemap: 1
+1 tasks, 40 files/directories
+
+SUMMARY rate: (of 1 iterations)
+   Operation                      Max            Min           Mean        Std Dev
+   ---------                      ---            ---           ----        -------
+   Directory creation        :      18094.602      18094.602      18094.602          0.000
+   Directory stat            :      32452.966      32452.966      32452.966          0.000
+   Directory removal         :          0.000          0.000          0.000          0.000
+   File creation             :      17605.130      17605.130      17605.130          0.000
+   File stat                 :      27030.881      27030.881      27030.881          0.000
+   File read                 :          0.000          0.000          0.000          0.000
+   File removal              :          0.000          0.000          0.000          0.000
+   Tree creation             :      21622.253      21622.253      21622.253          0.000
+   Tree removal              :          0.000          0.000          0.000          0.000
+-- finished at 12/11/2020 23:23:21 --
+```
