@@ -81,6 +81,7 @@ static void msg_abort(const char* why, const char* what, const char* srcfcn,
 static struct next_functions {
   int (*mkdir)(const char* path, mode_t);
   int (*__xmknod)(int ver, const char* path, mode_t, dev_t*);
+  int (*__xstat)(int ver, const char* path, struct stat* buf);
   int (*__lxstat)(int ver, const char* path, struct stat* buf);
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
@@ -179,6 +180,7 @@ static void preload_init() {
   MUST_GETNEXTDLSYM(mkdir);
   MUST_GETNEXTDLSYM(__xmknod);
   MUST_GETNEXTDLSYM(__lxstat);
+  MUST_GETNEXTDLSYM(__xstat);
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
   MUST_GETNEXTDLSYM(closedir);
@@ -271,6 +273,17 @@ int __xmknod(int ver, const char* path, mode_t mode, dev_t* dev) {
   }
 
   return nxt.__xmknod(ver, path, mode, dev);
+}
+
+int __xstat(int ver, const char* path, struct stat* buf) {
+  PRELOAD_Init();
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
+    TABLEFS_Init();
+    return tablefs_lstat(ctx.fs, newpath, buf);
+  }
+
+  return nxt.__xstat(ver, path, buf);
 }
 
 /*
