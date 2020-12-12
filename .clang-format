@@ -35,7 +35,7 @@ BasedOnStyle:    google
 DerivePointerAlignment: false
 IncludeBlocks:   Regroup
 IncludeCategories:
-  - Regex:           '^"tablefs/'
+  - Regex:           '^<tablefs/'
     Priority:        3
   - Regex:           '^<.*\.h>'
     Priority:        4

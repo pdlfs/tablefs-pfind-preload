@@ -62,6 +62,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 /*
  * Error reporting facilities...
@@ -78,6 +79,8 @@ static void msg_abort(const char* why, const char* what, const char* srcfcn,
  * implementation) we are providing to the preloader.
  */
 static struct next_functions {
+  int (*mkdir)(const char* path, mode_t);
+  int (*mknod)(const char* path, mode_t, dev_t);
   int (*__lxstat)(int ver, const char* path, struct stat* buf);
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
@@ -173,6 +176,8 @@ static void TABLEFS_Init() {
  */
 static void preload_init() {
 #define MUST_GETNEXTDLSYM(x) must_getnextdlsym((void**)(&nxt.x), #x)
+  MUST_GETNEXTDLSYM(mkdir);
+  MUST_GETNEXTDLSYM(mknod);
   MUST_GETNEXTDLSYM(__lxstat);
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
@@ -245,6 +250,28 @@ static const char* is_tablefs(const char* input) {
  * here are the actual override functions from libc.
  */
 extern "C" {
+
+int mkdir(const char* path, mode_t mode) {
+  PRELOAD_Init();
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
+    TABLEFS_Init();
+    return tablefs_mkdir(ctx.fs, newpath, mode);
+  }
+
+  return nxt.mkdir(path, mode);
+}
+
+int mknod(const char* path, mode_t mode, dev_t dev) {
+  PRELOAD_Init();
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
+    TABLEFS_Init();
+    return tablefs_mkfile(ctx.fs, newpath, mode);
+  }
+
+  return nxt.mknod(path, mode, dev);
+}
 
 /*
  * lstat is bound to __lxstat in libc on Linux... We don't know if there is a
