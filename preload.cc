@@ -80,7 +80,7 @@ static void msg_abort(const char* why, const char* what, const char* srcfcn,
  */
 static struct next_functions {
   int (*mkdir)(const char* path, mode_t);
-  int (*mknod)(const char* path, mode_t, dev_t);
+  int (*__xmknod)(int ver, const char* path, mode_t, dev_t*);
   int (*__lxstat)(int ver, const char* path, struct stat* buf);
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
@@ -177,7 +177,7 @@ static void TABLEFS_Init() {
 static void preload_init() {
 #define MUST_GETNEXTDLSYM(x) must_getnextdlsym((void**)(&nxt.x), #x)
   MUST_GETNEXTDLSYM(mkdir);
-  MUST_GETNEXTDLSYM(mknod);
+  MUST_GETNEXTDLSYM(__xmknod);
   MUST_GETNEXTDLSYM(__lxstat);
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
@@ -262,7 +262,7 @@ int mkdir(const char* path, mode_t mode) {
   return nxt.mkdir(path, mode);
 }
 
-int mknod(const char* path, mode_t mode, dev_t dev) {
+int __xmknod(int ver, const char* path, mode_t mode, dev_t* dev) {
   PRELOAD_Init();
   const char* newpath = is_tablefs(path);
   if (newpath) {
@@ -270,7 +270,7 @@ int mknod(const char* path, mode_t mode, dev_t dev) {
     return tablefs_mkfile(ctx.fs, newpath, mode);
   }
 
-  return nxt.mknod(path, mode, dev);
+  return nxt.__xmknod(ver, path, mode, dev);
 }
 
 /*
