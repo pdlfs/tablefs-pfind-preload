@@ -79,6 +79,7 @@ static void msg_abort(const char* why, const char* what, const char* srcfcn,
  * implementation) we are providing to the preloader.
  */
 static struct next_functions {
+  int (*rmdir)(const char* path);
   int (*mkdir)(const char* path, mode_t);
   int (*__xmknod)(int ver, const char* path, mode_t, dev_t*);
   int (*__xstat)(int ver, const char* path, struct stat* buf);
@@ -86,6 +87,7 @@ static struct next_functions {
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
   int (*closedir)(DIR* dirp);
+  int (*unlink)(const char* path);
 } nxt = {0};
 
 /*
@@ -177,6 +179,7 @@ static void TABLEFS_Init() {
  */
 static void preload_init() {
 #define MUST_GETNEXTDLSYM(x) must_getnextdlsym((void**)(&nxt.x), #x)
+  MUST_GETNEXTDLSYM(rmdir);
   MUST_GETNEXTDLSYM(mkdir);
   MUST_GETNEXTDLSYM(__xmknod);
   MUST_GETNEXTDLSYM(__lxstat);
@@ -184,6 +187,7 @@ static void preload_init() {
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
   MUST_GETNEXTDLSYM(closedir);
+  MUST_GETNEXTDLSYM(unlink);
 
 #undef MUST_GETNEXTDLSYM
   ctx.v = is_envset("PRELOAD_Verbose");
@@ -252,6 +256,17 @@ static const char* is_tablefs(const char* input) {
  * here are the actual override functions from libc.
  */
 extern "C" {
+
+int rmdir(const char* path) {
+  PRELOAD_Init();
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
+    TABLEFS_Init();
+    return tablefs_rmdir(ctx.fs, newpath);
+  }
+
+  return nxt.rmdir(path);
+}
 
 int mkdir(const char* path, mode_t mode) {
   PRELOAD_Init();
@@ -334,6 +349,17 @@ int closedir(DIR* dirp) {
   }
 
   return nxt.closedir(dirp);
+}
+
+int unlink(const char* path) {
+  PRELOAD_Init();
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
+    TABLEFS_Init();
+    return tablefs_unlink(ctx.fs, newpath);
+  }
+
+  return nxt.unlink(path);
 }
 
 } /* extern "C" */
