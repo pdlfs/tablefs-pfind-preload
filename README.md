@@ -144,13 +144,16 @@ If we don't like the `/tablefs` path prefix we can change it by setting env `PRE
 
 # User Manual (ior/mdtest)
 
+First, prepare the `tablefs-src`, `tablefs-dst`, and `tablefs-dat` directories as above and then build the tablefs and the preload code the same way as we do for pfind. Next, we run mdtest as shown below.
+
+
 * MPICH
 
 ```bash
 rm -rf ${tablefs-dat}   # clean up data of previous runs
 mkdir -p ${tablefs-dat}   # ensure parent directories
 mpirun -np 1 -env PRELOAD_Tablefs_home ${tablefs-dat} -env LD_PRELOAD ${tablefs-dst}/lib/libtablefs-pfind-preload.so \
-  /path/to/hpc/ior/mdtest -C -T -k -n 40 -z 3 -b 3 -d /tablefs
+  /path/to/hpc/ior/mdtest -C -T -r -k -n 40 -z 3 -b 3 -d /tablefs/out
 ```
 
 * OpenMPI
@@ -159,16 +162,16 @@ mpirun -np 1 -env PRELOAD_Tablefs_home ${tablefs-dat} -env LD_PRELOAD ${tablefs-
 rm -rf ${tablefs-dat}   # clean up data of previous runs
 mkdir -p ${tablefs-dat}   # ensure parent directories
 mpirun -np 1 -x PRELOAD_Tablefs_home=${tablefs-dat} -x LD_PRELOAD=${tablefs-dst}/lib/libtablefs-pfind-preload.so \
-  /path/to/hpc/ior/mdtest -C -T -k -n 40 -z 3 -b 3 -d /tablefs
+  /path/to/hpc/ior/mdtest -C -T -r -k -n 40 -z 3 -b 3 -d /tablefs/out
 ```
 
 Here's its output.
 
 ```bash
--- started at 12/11/2020 23:23:21 --
+-- started at 12/14/2020 17:39:42 --
 
 mdtest-3.4.0+dev was launched with 1 total task(s) on 1 node(s)
-Command line used: ./mdtest '-C' '-T' '-k' '-n' '40' '-z' '3' '-b' '3' '-d' '/tablefs'
+Command line used: ./mdtest '-C' '-T' '-r' '-k' '-n' '40' '-z' '3' '-b' '3' '-d' '/tablefs/out'
 POSIX couldn't call statvfs: No such file or directory
 WARNING: Backend returned error during statfs.
 Nodemap: 1
@@ -177,14 +180,14 @@ Nodemap: 1
 SUMMARY rate: (of 1 iterations)
    Operation                      Max            Min           Mean        Std Dev
    ---------                      ---            ---           ----        -------
-   Directory creation        :      18094.602      18094.602      18094.602          0.000
-   Directory stat            :      32452.966      32452.966      32452.966          0.000
-   Directory removal         :          0.000          0.000          0.000          0.000
-   File creation             :      17605.130      17605.130      17605.130          0.000
-   File stat                 :      27030.881      27030.881      27030.881          0.000
+   Directory creation        :      15679.290      15679.290      15679.290          0.000
+   Directory stat            :      26156.989      26156.989      26156.989          0.000
+   Directory removal         :      12943.706      12943.706      12943.706          0.000
+   File creation             :      14252.770      14252.770      14252.770          0.000
+   File stat                 :      23503.489      23503.489      23503.489          0.000
    File read                 :          0.000          0.000          0.000          0.000
-   File removal              :          0.000          0.000          0.000          0.000
-   Tree creation             :      21622.253      21622.253      21622.253          0.000
-   Tree removal              :          0.000          0.000          0.000          0.000
--- finished at 12/11/2020 23:23:21 --
+   File removal              :      15187.032      15187.032      15187.032          0.000
+   Tree creation             :      19325.585      19325.585      19325.585          0.000
+   Tree removal              :      11941.896      11941.896      11941.896          0.000
+-- finished at 12/14/2020 17:39:43 --
 ```
