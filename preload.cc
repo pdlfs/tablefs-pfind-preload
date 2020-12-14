@@ -87,6 +87,7 @@ static struct next_functions {
   DIR* (*opendir)(const char* path);
   struct dirent* (*readdir)(DIR* dirp);
   int (*closedir)(DIR* dirp);
+  int (*access)(const char* path, int mode);
   int (*unlink)(const char* path);
 } nxt = {0};
 
@@ -179,15 +180,16 @@ static void TABLEFS_Init() {
  */
 static void preload_init() {
 #define MUST_GETNEXTDLSYM(x) must_getnextdlsym((void**)(&nxt.x), #x)
-  MUST_GETNEXTDLSYM(rmdir);
-  MUST_GETNEXTDLSYM(mkdir);
+  MUST_GETNEXTDLSYM(access);
+  MUST_GETNEXTDLSYM(unlink);
   MUST_GETNEXTDLSYM(__xmknod);
   MUST_GETNEXTDLSYM(__lxstat);
   MUST_GETNEXTDLSYM(__xstat);
   MUST_GETNEXTDLSYM(opendir);
   MUST_GETNEXTDLSYM(readdir);
   MUST_GETNEXTDLSYM(closedir);
-  MUST_GETNEXTDLSYM(unlink);
+  MUST_GETNEXTDLSYM(rmdir);
+  MUST_GETNEXTDLSYM(mkdir);
 
 #undef MUST_GETNEXTDLSYM
   ctx.v = is_envset("PRELOAD_Verbose");
@@ -349,6 +351,18 @@ int closedir(DIR* dirp) {
   }
 
   return nxt.closedir(dirp);
+}
+
+int access(const char* path, int mode) {
+  PRELOAD_Init();
+  const char* newpath = is_tablefs(path);
+  if (newpath) {
+    struct stat buf;
+    TABLEFS_Init();
+    return tablefs_lstat(ctx.fs, newpath, &buf);
+  }
+
+  return nxt.access(path, mode);
 }
 
 int unlink(const char* path) {
