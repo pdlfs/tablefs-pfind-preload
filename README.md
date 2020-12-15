@@ -171,26 +171,28 @@ We then use `-k` to make mdtest create files through `mknod` rather than a pair 
 Here's its output.
 
 ```bash
--- started at 12/14/2020 17:39:42 --
+-- started at 12/14/2020 20:24:04 --
 
 mdtest-3.4.0+dev was launched with 1 total task(s) on 1 node(s)
 Command line used: ./mdtest '-C' '-T' '-r' '-k' '-n' '40' '-z' '3' '-b' '3' '-d' '/tablefs/out'
-POSIX couldn't call statvfs: No such file or directory
-WARNING: Backend returned error during statfs.
+Path                : /tablefs/out
+FS                  : 0.0 GiB   Used FS: -nan%   Inodes: 0.0 Mi   Used Inodes: -nan%
 Nodemap: 1
 1 tasks, 40 files/directories
 
 SUMMARY rate: (of 1 iterations)
    Operation                      Max            Min           Mean        Std Dev
    ---------                      ---            ---           ----        -------
-   Directory creation        :      15679.290      15679.290      15679.290          0.000
-   Directory stat            :      26156.989      26156.989      26156.989          0.000
-   Directory removal         :      12943.706      12943.706      12943.706          0.000
-   File creation             :      14252.770      14252.770      14252.770          0.000
-   File stat                 :      23503.489      23503.489      23503.489          0.000
+   Directory creation        :      15732.701      15732.701      15732.701          0.000
+   Directory stat            :      24678.272      24678.272      24678.272          0.000
+   Directory removal         :      12923.846      12923.846      12923.846          0.000
+   File creation             :      14712.633      14712.633      14712.633          0.000
+   File stat                 :      22288.804      22288.804      22288.804          0.000
    File read                 :          0.000          0.000          0.000          0.000
-   File removal              :      15187.032      15187.032      15187.032          0.000
-   Tree creation             :      19325.585      19325.585      19325.585          0.000
-   Tree removal              :      11941.896      11941.896      11941.896          0.000
--- finished at 12/14/2020 17:39:43 --
+   File removal              :      15412.631      15412.631      15412.631          0.000
+   Tree creation             :      18807.731      18807.731      18807.731          0.000
+   Tree removal              :      11994.917      11994.917      11994.917          0.000
+-- finished at 12/14/2020 20:24:04 --
+
+Bye
 ```
