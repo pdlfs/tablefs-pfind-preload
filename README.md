@@ -165,6 +165,9 @@ mpirun -np 1 -x PRELOAD_Tablefs_home=${tablefs-dat} -x LD_PRELOAD=${tablefs-dst}
   /path/to/hpc/ior/mdtest -C -T -r -k -n 40 -z 3 -b 3 -d /tablefs/out
 ```
 
+We use `-C -T -r` to make mdtest only do file creates, stats, and deletes, but not reads (since we are not interested in file I/O).
+We then use `-k` to make mdtest create files through `mknod` rather than a pair of `open` and `close` calls. Next, we use `-z 3 -b 3` to configure the shape of our test tree. With this the total number of parent directories in the tree is equal to `1 + 3 + 9 + 27 = 40` and this is why we use `-n 40`. Finally, `-d /tablefs/out` sets the root test directory for mdtest: all calls beneath `/tablefs/out` will be translated to calls beneath `/out` in tablefs.
+
 Here's its output.
 
 ```bash
