@@ -62,6 +62,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 
 /*
@@ -374,6 +375,11 @@ int unlink(const char* path) {
   }
 
   return nxt.unlink(path);
+}
+
+int statvfs(const char* path, struct statvfs* buf) {
+  memset(buf, 0, sizeof(struct statvfs));
+  return 0;
 }
 
 } /* extern "C" */
